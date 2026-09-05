@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 
@@ -62,8 +62,17 @@ Just the JSON with these fields:
     `;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const analysis = JSON.parse(text);
+        const text = result.response.text();
+    const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    let analysis;
+    try {
+      analysis = JSON.parse(cleaned);
+    } catch {
+      throw new InternalServerErrorException(
+        'The model returned a malformed response. Please retry.',
+      );
+    }
 
     return {
       ...analysis,
