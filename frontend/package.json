@@ -15,6 +15,8 @@
     "axios": "^1.17.0",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",
+    "plotly.js": "^3.7.0",
+    "plotly.js-dist-min": "^4.0.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-scripts": "5.0.1",
@@ -48,6 +50,8 @@
     ]
   },
   "devDependencies": {
+    "@types/plotly.js": "^3.0.13",
+    "@types/plotly.js-dist-min": "^2.3.4",
     "prettier": "^3.8.3"
   }
 }

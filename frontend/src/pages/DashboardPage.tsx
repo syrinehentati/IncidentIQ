@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useDashboardStats } from '../hooks/useDashboard';
 import { Ticket } from '../types';
-
+import { CategoryChart, SeverityChart, SimilarityChart, TimelineChart } from '../components/ui/charts';
 function Badge({ label, value }: { label: string; value: string | number }) {
   return (
     <div
@@ -54,7 +54,13 @@ if (isLoading) return (
         <Badge label="Knowledge Base" value={kbCount} />
         <Badge label="Top Category" value={stats.topCategory} />
       </div>
-
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <CategoryChart tickets={tickets} />
+        <SeverityChart tickets={tickets} />
+        <TimelineChart tickets={tickets} />
+        <SimilarityChart tickets={tickets} />
+      </div>
+      <TimelineChart tickets={tickets} />
       {/* INSIGHT PANEL */}
       <div
         style={{
