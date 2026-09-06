@@ -1,0 +1,19 @@
+services:
+    
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ticket_analyzer
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/ticket_analyzer
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports: ["3000:3000"]
+    depends_on: [db]
+
+volumes:
+  pgdata:
