@@ -122,4 +122,18 @@ describe('TicketsService', () => {
       expect(results.length).toBeGreaterThan(0);
     });
   });
+
+    describe('remove', () => {
+    it('deletes by normalised id', async () => {
+      repo.delete.mockResolvedValue({ affected: 1 });
+      const result = await service.remove(' tkt-099 ');
+      expect(repo.delete).toHaveBeenCalledWith({ ticket_id: 'TKT-099' });
+      expect(result).toEqual({ deleted: true });
+    });
+
+    it('throws when the ticket does not exist', async () => {
+      repo.delete.mockResolvedValue({ affected: 0 });
+      await expect(service.remove('TKT-999')).rejects.toThrow(NotFoundException);
+    });
+  });
 });

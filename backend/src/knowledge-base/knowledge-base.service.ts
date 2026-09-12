@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EmbeddingService } from './embedding.service';
@@ -22,9 +22,10 @@ export class KnowledgeBaseService {
     severity: string,
     detected_language: string
   ): Promise<KnowledgeBaseEntity> {
-    // check for duplicate
+    const id = ticket_id.trim().toUpperCase();
+
     const existing = await this.kbRepository.findOne({
-      where: { ticket_id },
+      where: { ticket_id: id },
     });
     if (existing) return existing;
 
@@ -36,7 +37,7 @@ export class KnowledgeBaseService {
     const embedding = await this.embeddingService.generateEmbedding(text);
 
     const entry = this.kbRepository.create({
-      ticket_id,
+      ticket_id: id,
       title,
       description,
       logs,
@@ -55,7 +56,8 @@ export class KnowledgeBaseService {
     description: string,
     logs: string[],
     topK: number = 3,
-    threshold: number = 0.6
+    threshold: number = 0.6,
+    maxSimilarity: number = 0.98
   ) {
     const entries = await this.kbRepository.find();
     if (entries.length === 0) return [];
@@ -76,7 +78,7 @@ export class KnowledgeBaseService {
     }));
 
     return similarities
-      .filter((s) => s.similarity >= threshold)
+      .filter((s) => s.similarity >= threshold && s.similarity < maxSimilarity)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, topK);
   }
@@ -89,5 +91,21 @@ export class KnowledgeBaseService {
 
   getCount(): Promise<number> {
     return this.kbRepository.count();
+  }
+
+  async remove(ticket_id: string): Promise<{ deleted: boolean }> {
+    const normalised = ticket_id.trim().toUpperCase();
+
+    let result = await this.kbRepository.delete({
+      ticket_id: normalised,
+    });
+
+    if (!result.affected) {
+      result = await this.kbRepository.delete({ ticket_id });
+    }
+    if (!result.affected) {
+      throw new NotFoundException(`Ticket ${ticket_id} not found`);
+    }
+    return { deleted: true };
   }
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { addToKnowledgeBase } from '../services/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { addToKnowledgeBase, deleteTicket } from '../services/api';
 import { useTickets } from '../hooks/useTickets';
 import { Ticket } from '../types';
 import Skeleton from '../components/ui/Skeleton';
@@ -9,12 +10,38 @@ import TicketDetailPanel from '../components/incidents/TicketDetailPanel';
 
 function IncidentsPage() {
   const { data: tickets = [], isLoading, error, refetch } = useTickets();
+  const queryClient = useQueryClient();
 
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState('');
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      setDeletingId(id);
+      return deleteTicket(id);
+    },
+    onSettled: () => setDeletingId(null),
+    onSuccess: (_data, id) => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      if (selected?.ticket_id === id) setSelected(null);
+      setCheckedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    },
+    onError: (err: Error) => {
+      setActionError(err.message || 'Could not delete the incident.');
+    },
+  });
 
   const filteredTickets = tickets.filter((t: Ticket) => {
     const q = search.toLowerCase();
@@ -50,13 +77,15 @@ function IncidentsPage() {
 
   async function handleAddToKB() {
     const toAdd = filteredTickets.filter(
-      (t: Ticket) =>
-        checkedIds.has(t.ticket_id) && !addedIds.has(t.ticket_id)
+      (t: Ticket) => checkedIds.has(t.ticket_id) && !addedIds.has(t.ticket_id)
     );
 
     if (!toAdd.length) return;
 
     setAdding(true);
+    setActionError(null);
+
+    const failed: string[] = [];
 
     for (const ticket of toAdd) {
       if (!ticket.analysis) continue;
@@ -73,12 +102,49 @@ function IncidentsPage() {
         });
         setAddedIds((prev) => new Set(prev).add(ticket.ticket_id));
       } catch {
-        // silent fail
+        failed.push(ticket.ticket_id);
       }
+    }
+
+    if (failed.length) {
+      setActionError(
+        `Could not add ${failed.length} of ${toAdd.length} to the knowledge base: ${failed.join(', ')}`
+      );
     }
 
     setCheckedIds(new Set());
     setAdding(false);
+    queryClient.invalidateQueries({ queryKey: ['knowledge-base'] });
+  }
+
+  async function handleDeleteSelected() {
+    const ids = filteredTickets
+      .filter((t: Ticket) => checkedIds.has(t.ticket_id))
+      .map((t: Ticket) => t.ticket_id);
+
+    if (!ids.length) return;
+
+    setBulkDeleting(true);
+    setActionError(null);
+
+    const failed: string[] = [];
+
+    for (const id of ids) {
+      try {
+        await deleteTicket(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+
+    if (failed.length) {
+      setActionError(`Could not delete: ${failed.join(', ')}`);
+    }
+
+    setCheckedIds(new Set());
+    setSelected(null);
+    setBulkDeleting(false);
+    queryClient.invalidateQueries({ queryKey: ['tickets'] });
   }
 
   // ─── early returns ───────────────────────────────────────────
@@ -117,7 +183,6 @@ function IncidentsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
       {/* search bar */}
       <div style={{ display: 'flex', gap: 8 }}>
         <input
@@ -182,6 +247,26 @@ function IncidentsPage() {
               : 'Select all'}
           </button>
 
+          {checkedIds.size > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              disabled={bulkDeleting}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #fecdd3',
+                background: '#fff1f2',
+                color: '#be123c',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                opacity: bulkDeleting ? 0.6 : 1,
+              }}
+            >
+              {bulkDeleting ? 'Deleting…' : `Delete ${checkedIds.size}`}
+            </button>
+          )}
+
           <button
             onClick={handleAddToKB}
             disabled={adding}
@@ -202,6 +287,39 @@ function IncidentsPage() {
         </div>
       </div>
 
+      {/* action error */}
+      {actionError && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: '#fff1f2',
+            border: '1px solid #fecdd3',
+            color: '#9f1239',
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: '#9f1239',
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* table */}
       <TicketTable
         tickets={filteredTickets}
@@ -210,16 +328,14 @@ function IncidentsPage() {
         addedIds={addedIds}
         onSelect={handleSelect}
         onCheck={toggleCheck}
+        onDelete={(id) => deleteMutation.mutate(id)}
+        deletingId={deletingId}
       />
 
       {/* detail panel */}
       {selected?.analysis && (
-        <TicketDetailPanel
-          ticket={selected}
-          onClose={() => setSelected(null)}
-        />
+        <TicketDetailPanel ticket={selected} onClose={() => setSelected(null)} />
       )}
-
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Controller, Get ,Post, Body, Param } from '@nestjs/common';
+import { Controller, Get ,Post, Body, Param, Delete } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import {CreateTicketDto } from './dto/create-ticket.dto';
 
@@ -25,4 +25,9 @@ export class TicketsController {
 analyzeBulk(@Body() body?: { tickets?: CreateTicketDto[] }) {
   return this.ticketsService.analyzeBulk(body?.tickets);
 }
+
+@Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.ticketsService.remove(id);
+  }
 }

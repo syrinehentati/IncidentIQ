@@ -9,6 +9,8 @@ interface Props {
   addedIds: Set<string>;
   onSelect: (ticket: Ticket) => void;
   onCheck: (id: string) => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
 }
 
 function TicketTable({
@@ -18,6 +20,8 @@ function TicketTable({
   addedIds,
   onSelect,
   onCheck,
+  onDelete,
+  deletingId,
 }: Props) {
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -37,12 +41,15 @@ function TicketTable({
             <th>Category</th>
             <th>Language</th>
             <th>KB</th>
+            <th></th>
           </tr>
         </thead>
 
         <tbody>
           {tickets.map((ticket) => (
             <TicketRow
+              onDelete={() => onDelete(ticket.ticket_id)}
+              isDeleting={deletingId === ticket.ticket_id}
               key={ticket.ticket_id}
               ticket={ticket}
               isSelected={selectedId === ticket.ticket_id}

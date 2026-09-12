@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body } from '@nestjs/common';
+import { Controller, Post, Get, Body, Delete, Param } from '@nestjs/common';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { AddEntryDto } from './dto/add-entry.dto';
 @Controller('knowledge-base')
@@ -29,5 +29,9 @@ export class KnowledgeBaseController {
   @Get('count')
   getCount() {
     return { count: this.knowledgeBaseService.getCount() };
+  }
+    @Delete(':ticket_id')
+  remove(@Param('ticket_id') ticket_id: string) {
+    return this.knowledgeBaseService.remove(ticket_id);
   }
 }

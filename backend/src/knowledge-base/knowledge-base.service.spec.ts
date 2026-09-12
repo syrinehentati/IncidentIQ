@@ -59,18 +59,22 @@ describe('KnowledgeBaseService', () => {
     it('orders results by similarity, best first', async () => {
       repo.find.mockResolvedValue([
         entry('far', [0, 1]),
-        entry('near', [1, 0]),
+        entry('near', [0.9, 0.3]),
         entry('mid', [0.8, 0.6]),
       ]);
       embeddings.generateEmbedding.mockResolvedValue([1, 0]);
 
       const results = await service.findSimilar('t', 'd', [], 3, 0);
-      expect(results.map((r) => r.entry.ticket_id)).toEqual(['near', 'mid', 'far']);
+      expect(results.map((r) => r.entry.ticket_id)).toEqual([
+        'near',
+        'mid',
+        'far',
+      ]);
     });
 
     it('drops entries below the similarity threshold', async () => {
       repo.find.mockResolvedValue([
-        entry('match', [1, 0]),
+        entry('match', [0.9,0.3]),
         entry('unrelated', [0, 1]),
       ]);
       embeddings.generateEmbedding.mockResolvedValue([1, 0]);
@@ -82,12 +86,25 @@ describe('KnowledgeBaseService', () => {
 
     it('caps results at topK', async () => {
       repo.find.mockResolvedValue([
-        entry('a', [1, 0]), entry('b', [1, 0]),
-        entry('c', [1, 0]), entry('d', [1, 0]),
+        entry('a', [0.9, 0.3]),
+        entry('b', [0.9, 0.3]),
+        entry('c', [0.9, 0.3]),
+        entry('d', [0.9, 0.3]),
       ]);
       embeddings.generateEmbedding.mockResolvedValue([1, 0]);
 
       expect(await service.findSimilar('t', 'd', [], 2, 0)).toHaveLength(2);
+    });
+
+    it('excludes near-identical entries as unhelpful context', async () => {
+      repo.find.mockResolvedValue([
+        entry('duplicate', [1, 0]),
+        entry('related', [0.8, 0.6]),
+      ]);
+      embeddings.generateEmbedding.mockResolvedValue([1, 0]);
+
+      const results = await service.findSimilar('t', 'd', [], 3, 0);
+      expect(results.map((r) => r.entry.ticket_id)).toEqual(['related']);
     });
   });
 
@@ -96,7 +113,16 @@ describe('KnowledgeBaseService', () => {
       const existing = entry('T-1', [1, 0]);
       repo.findOne.mockResolvedValue(existing);
 
-      const result = await service.addEntry('T-1', 't', 'd', [], [], 'c', 's', 'en');
+      const result = await service.addEntry(
+        'T-1',
+        't',
+        'd',
+        [],
+        [],
+        'c',
+        's',
+        'en'
+      );
 
       expect(result).toBe(existing);
       expect(embeddings.generateEmbedding).not.toHaveBeenCalled();
@@ -107,11 +133,32 @@ describe('KnowledgeBaseService', () => {
       repo.findOne.mockResolvedValue(null);
       embeddings.generateEmbedding.mockResolvedValue([0.1, 0.2]);
 
-      const result = await service.addEntry('T-2', 'title', 'desc', ['log'], ['fix'], 'network', 'high', 'en');
+      const result = await service.addEntry(
+        'T-2',
+        'title',
+        'desc',
+        ['log'],
+        ['fix'],
+        'network',
+        'high',
+        'en'
+      );
 
-      expect(embeddings.generateEmbedding).toHaveBeenCalledWith('prepared text');
+      expect(embeddings.generateEmbedding).toHaveBeenCalledWith(
+        'prepared text'
+      );
       expect(repo.save).toHaveBeenCalled();
       expect(result.embedding).toEqual([0.1, 0.2]);
+    });
+
+        it('normalises the ticket id before storing', async () => {
+      repo.findOne.mockResolvedValue(null);
+      embeddings.generateEmbedding.mockResolvedValue([0.1, 0.2]);
+
+      const result = await service.addEntry('  tkt-099 ', 't', 'd', [], [], 'c', 's', 'en');
+
+      expect(repo.findOne).toHaveBeenCalledWith({ where: { ticket_id: 'TKT-099' } });
+      expect(result.ticket_id).toBe('TKT-099');
     });
   });
 });

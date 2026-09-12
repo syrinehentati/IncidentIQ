@@ -102,3 +102,29 @@ export const addToKnowledgeBase = async (
     throw handleApiError(err);
   }
 };
+
+export const deleteTicket = async (
+  ticketId: string
+): Promise<{ deleted: boolean }> => {
+  try {
+    const response = await api.delete<{ deleted: boolean }>(
+      `/tickets/${encodeURIComponent(ticketId)}`
+    );
+    return response.data;
+  } catch (err) {
+    throw handleApiError(err);
+  }
+};
+
+export const deleteKnowledgeBaseEntry = async (
+  ticketId: string
+): Promise<{ deleted: boolean }> => {
+  try {
+    const response = await api.delete<{ deleted: boolean }>(
+      `/knowledge-base/${encodeURIComponent(ticketId)}`
+    );
+    return response.data;
+  } catch (err) {
+    throw handleApiError(err);
+  }
+};

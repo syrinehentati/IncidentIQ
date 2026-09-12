@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnalysisService } from '../analysis/analysis.service';
@@ -28,7 +28,7 @@ export class TicketsService {
   async createAndAnalyze(dto: CreateTicketDto): Promise<TicketEntity> {
     // check for duplicate
     const existing = await this.ticketRepository.findOne({
-      where: { ticket_id: dto.ticket_id },
+      where: { ticket_id: dto.ticket_id.trim().toUpperCase() },
     });
     if (existing) return existing;
 
@@ -87,5 +87,22 @@ export class TicketsService {
     }
 
     return results;
+  }
+
+
+     async remove(id: string): Promise<{ deleted: boolean }> {
+    const normalised = id.trim().toUpperCase();
+
+    let result = await this.ticketRepository.delete({ ticket_id: normalised });
+
+    // fall back to the raw id for rows stored before ids were normalised
+    if (!result.affected) {
+      result = await this.ticketRepository.delete({ ticket_id: id });
+    }
+
+    if (!result.affected) {
+      throw new NotFoundException(`Ticket ${id} not found`);
+    }
+    return { deleted: true };
   }
 }
