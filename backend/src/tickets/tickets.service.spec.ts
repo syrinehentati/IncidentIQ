@@ -1,5 +1,7 @@
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { AnalysisService } from '../analysis/analysis.service';
 import { TicketEntity } from './entites/ticket.entity';
@@ -23,7 +25,9 @@ describe('TicketsService', () => {
       findOne: jest.fn(),
       create: jest.fn((x) => x),
       save: jest.fn((x) => Promise.resolve(x)),
+      delete: jest.fn(), // FIX: added delete mock
     };
+
     analysis = { analyzeTicket: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,13 +73,14 @@ describe('TicketsService', () => {
     it('orders by analyzed_at descending', async () => {
       repo.find.mockResolvedValue([]);
       await service.findAll();
+
       expect(repo.find).toHaveBeenCalledWith({
         order: { analyzed_at: 'DESC' },
       });
     });
   });
 
-    describe('analyzeBulk', () => {
+  describe('analyzeBulk', () => {
     beforeEach(() => {
       jest.useFakeTimers();
     });
@@ -104,6 +109,7 @@ describe('TicketsService', () => {
       repo.findOne
         .mockResolvedValueOnce({ ticket_id: 'T-1' })
         .mockResolvedValueOnce(null);
+
       analysis.analyzeTicket.mockResolvedValue({ summary: 's' });
 
       const results = await run([dto('T-1'), dto('T-2')]);
@@ -123,17 +129,24 @@ describe('TicketsService', () => {
     });
   });
 
-    describe('remove', () => {
+  describe('remove', () => {
     it('deletes by normalised id', async () => {
       repo.delete.mockResolvedValue({ affected: 1 });
+
       const result = await service.remove(' tkt-099 ');
-      expect(repo.delete).toHaveBeenCalledWith({ ticket_id: 'TKT-099' });
+
+      expect(repo.delete).toHaveBeenCalledWith({
+        ticket_id: 'TKT-099',
+      });
       expect(result).toEqual({ deleted: true });
     });
 
     it('throws when the ticket does not exist', async () => {
       repo.delete.mockResolvedValue({ affected: 0 });
-      await expect(service.remove('TKT-999')).rejects.toThrow(NotFoundException);
+
+      await expect(service.remove('TKT-999')).rejects.toThrow(
+        NotFoundException
+      );
     });
   });
 });
